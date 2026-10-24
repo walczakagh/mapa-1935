@@ -1,10 +1,9 @@
-```html
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>Mapa 1935 vs Google Satellite</title>
 
   <link
@@ -15,10 +14,7 @@
   <style>
     html, body {
       margin: 0;
-      padding: 0;
-      width: 100%;
       height: 100%;
-      overflow: hidden;
       font-family: Arial, sans-serif;
     }
 
@@ -34,104 +30,41 @@
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
-      background: rgba(255, 255, 255, 0.95);
+      background: rgba(255,255,255,.95);
       padding: 8px 14px;
       border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
       text-align: center;
       font-size: 14px;
       max-width: calc(100% - 100px);
-      pointer-events: none;
     }
 
     .mode {
       position: absolute;
       top: 75px;
       left: 10px;
-      z-index: 1100;
+      z-index: 1000;
       background: #fff;
-      padding: 8px 12px;
+      padding: 10px;
       border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
       font-size: 13px;
       line-height: 1.8;
     }
 
-    /* Side-by-side slider track */
+    /* Keep the slider draggable above the map layers */
     .leaflet-sbs-range {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      cursor: ew-resize;
       z-index: 1000;
-      pointer-events: none;
-      appearance: none;
-      -webkit-appearance: none;
-    }
-
-    /* Chrome, Edge and Safari slider handle */
-    .leaflet-sbs-range::-webkit-slider-runnable-track {
-      width: 100%;
-      height: 100%;
-      background: transparent;
-      border: none;
-    }
-
-    .leaflet-sbs-range::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 8px;
-      height: 100vh;
-      background: #fff;
-      border: 1px solid #333;
-      border-radius: 0;
       cursor: ew-resize;
-      pointer-events: auto;
-      box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
     }
 
-    /* Firefox slider handle */
-    .leaflet-sbs-range::-moz-range-track {
-      height: 100%;
-      background: transparent;
-      border: none;
-    }
-
-    .leaflet-sbs-range::-moz-range-thumb {
-      width: 8px;
-      height: 100vh;
-      background: #fff;
-      border: 1px solid #333;
-      border-radius: 0;
-      cursor: ew-resize;
-      pointer-events: auto;
-      box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
-    }
-
-    /* Make sure the divider itself never blocks dragging */
     .leaflet-sbs-divider {
-      pointer-events: none !important;
-    }
-
-    @media (max-width: 600px) {
-      .info {
-        font-size: 12px;
-        padding: 6px 8px;
-        max-width: calc(100% - 80px);
-      }
-
-      .mode {
-        top: 70px;
-        font-size: 12px;
-      }
+      z-index: 999;
     }
   </style>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@master/leaflet-side-by-side.js"></script>
 </head>
 
 <body>
@@ -154,144 +87,99 @@
     </label>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@master/leaflet-side-by-side.js"></script>
-
   <script>
-    (function () {
-      "use strict";
+    // Check that both libraries loaded correctly.
+    if (typeof L === "undefined") {
+      throw new Error("Leaflet failed to load.");
+    }
 
-      // Check that both libraries loaded.
-      if (typeof L === "undefined") {
-        console.error("Leaflet failed to load.");
-        return;
+    if (typeof L.control.sideBySide !== "function") {
+      throw new Error(
+        "The side-by-side plugin failed to load. Check the CDN request."
+      );
+    }
+
+    const map = L.map("map", {
+      center: [51.539, 21.068],
+      zoom: 13
+    });
+
+    // Google satellite imagery.
+    const googleSatellite = L.tileLayer(
+      "https://mt{s}.google.com/vt/lyrs=s&hl=pl&x={x}&y={y}&z={z}",
+      {
+        subdomains: ["0", "1", "2", "3"],
+        minZoom: 0,
+        maxZoom: 19,
+        attribution: "Imagery © Google"
       }
+    );
 
-      if (typeof L.control.sideBySide !== "function") {
-        console.error("Leaflet Side-by-Side plugin failed to load.");
-        return;
-      }
+    googleSatellite.addTo(map);
 
-      // Initialize map.
-      const map = L.map("map", {
-        center: [51.539, 21.068],
-        zoom: 13,
-        zoomControl: true
-      });
+    let mapa1935 = null;
+    let sideBySide = null;
 
-      // Google Satellite layer.
-      // This layer remains in place when XYZ/TMS is changed.
-      const googleSatellite = L.tileLayer(
-        "https://mt{s}.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}",
+    function createHistoricalLayer(mode) {
+      return L.tileLayer(
+        "./tiles_1935/{z}/{x}/{y}.png",
         {
-          subdomains: ["0", "1", "2", "3"],
-          minZoom: 0,
-          maxZoom: 20,
-          attribution: "Imagery © Google",
-          crossOrigin: true
+          minZoom: 12,
+          maxZoom: 18,
+          tms: mode === "tms",
+          attribution: "Mapa topograficzna 1935",
+          errorTileUrl: "",
+          keepBuffer: 4
         }
-      ).addTo(map);
+      );
+    }
 
-      let historicalLayer = null;
-      let comparisonControl = null;
-
-      // Local historical map tiles.
-      function createHistoricalLayer(mode) {
-        return L.tileLayer(
-          "./tiles_1935/{z}/{x}/{y}.png",
-          {
-            minZoom: 12,
-            maxZoom: 18,
-            tms: mode === "tms",
-            attribution: "Mapa topograficzna 1935",
-            keepBuffer: 4
-          }
-        );
+    function setupComparison(mode) {
+      // Remove the previous control and historical layer.
+      if (sideBySide) {
+        map.removeControl(sideBySide);
+        sideBySide = null;
       }
 
-      // Configure the comparison slider.
-      function setupComparison(mode) {
-        // Remove the old comparison control first.
-        if (comparisonControl) {
-          map.removeControl(comparisonControl);
-          comparisonControl = null;
-        }
-
-        // Remove the previous historical layer.
-        if (historicalLayer) {
-          map.removeLayer(historicalLayer);
-          historicalLayer = null;
-        }
-
-        // Create and add the selected tile scheme.
-        historicalLayer = createHistoricalLayer(mode);
-        historicalLayer.addTo(map);
-
-        // Historical map on the left, satellite on the right.
-        comparisonControl = L.control.sideBySide(
-          historicalLayer,
-          googleSatellite
-        );
-
-        comparisonControl.addTo(map);
-
-        // Reset the comparison position to the middle.
-        const slider = document.querySelector(
-          ".leaflet-sbs-range"
-        );
-
-        if (slider) {
-          slider.value = 50;
-          slider.dispatchEvent(new Event("input", {
-            bubbles: true
-          }));
-        }
+      if (mapa1935) {
+        map.removeLayer(mapa1935);
+        mapa1935 = null;
       }
 
-      // Initialize comparison.
-      setupComparison("xyz");
+      // Create and add both layers before initializing the slider.
+      mapa1935 = createHistoricalLayer(mode);
+      mapa1935.addTo(map);
 
-      // Switch between XYZ and TMS without reloading the satellite layer.
-      document.querySelectorAll(
-        'input[name="tileMode"]'
-      ).forEach(function (input) {
-        input.addEventListener("change", function (event) {
-          if (event.target.checked) {
-            setupComparison(event.target.value);
-          }
-        });
+      // Historical map on the LEFT, satellite imagery on the RIGHT.
+      sideBySide = L.control.sideBySide(
+        mapa1935,
+        googleSatellite
+      );
+
+      sideBySide.addTo(map);
+
+      console.log("Comparison initialized. Tile mode:", mode);
+    }
+
+    // Initial comparison.
+    setupComparison("xyz");
+
+    // Switch between XYZ and TMS tile indexing.
+    document.querySelectorAll(
+      'input[name="tileMode"]'
+    ).forEach(input => {
+      input.addEventListener("change", event => {
+        if (event.target.checked) {
+          setupComparison(event.target.value);
+        }
       });
+    });
 
-      // Zoom to the study area.
-      map.fitBounds([
-        [51.4859, 20.9500],
-        [51.5925, 21.1853]
-      ]);
-
-      // Refresh Leaflet dimensions after the page layout settles.
-      requestAnimationFrame(function () {
-        map.invalidateSize();
-      });
-
-      // Diagnostic messages for tile loading.
-      googleSatellite.on("tileerror", function (event) {
-        console.error(
-          "Google Satellite tile error:",
-          event.tile.src
-        );
-      });
-
-      googleSatellite.on("tileload", function () {
-        console.log("Google Satellite tile loaded.");
-      });
-
-      map.on("overlayadd", function () {
-        console.log("Map overlay added.");
-      });
-
-      console.log("Map and comparison slider initialized.");
-    })();
+    // Original study area.
+    map.fitBounds([
+      [51.4859, 20.9500],
+      [51.5925, 21.1853]
+    ]);
   </script>
 </body>
 </html>
-```
