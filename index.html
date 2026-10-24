@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Plugin Side-by-Side -->
-  <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@master/leaflet-side-by-side.js"></script>
+  <!-- Plugin Side-by-Side (pinned version) -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-side-by-side@2.2.0/leaflet-side-by-side.js"></script>
 
   <style>
     html, body { margin: 0; height: 100%; font-family: Arial, sans-serif; }
@@ -64,58 +64,67 @@
   </div>
 
   <script>
-    let mapa1935;
-    let sideBySide;
+    // ---- Config ----------------------------------------------------------
+    const BOUNDS = L.latLngBounds([51.4859, 20.9500], [51.5925, 21.1853]);
+    const TILE_MIN_ZOOM = 12;   // lowest zoom you generated
+    const TILE_MAX_ZOOM = 18;   // highest zoom you generated
+    const MAP_MAX_ZOOM  = 19;   // user can zoom further (tiles get stretched)
 
+    // ---- Map -------------------------------------------------------------
     const map = L.map('map', {
-      center: [51.539, 21.068],
-      zoom: 13
+      minZoom: TILE_MIN_ZOOM,
+      maxZoom: MAP_MAX_ZOOM,
+      maxBounds: BOUNDS.pad(0.5)
     });
 
+    // Right side: satellite
     const googleSatellite = L.tileLayer(
       'https://mt{s}.google.com/vt/lyrs=s&hl=pl&x={x}&y={y}&z={z}', {
         subdomains: ['0', '1', '2', '3'],
-        maxZoom: 19,
+        maxZoom: MAP_MAX_ZOOM,
         attribution: 'Imagery &copy; Google'
       }
     ).addTo(map);
 
-    function createHistoricalLayer(mode) {
-      const url = mode === 'tms'
-        ? './tiles_1935/{z}/{x}/{-y}.png'
-        : './tiles_1935/{z}/{x}/{y}.png';
+    // Alternative (ToS-friendlier) - swap in if you publish this:
+    // const googleSatellite = L.tileLayer(
+    //   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    //     maxZoom: MAP_MAX_ZOOM,
+    //     attribution: 'Imagery &copy; Esri'
+    //   }
+    // ).addTo(map);
 
-      return L.tileLayer(url, {
-        minZoom: 12,
-        maxZoom: 18,
+    // Left side: historical map
+    let mapa1935 = null;
+    let sideBySide = null;
+
+    function createHistoricalLayer(mode) {
+      return L.tileLayer('./tiles_1935/{z}/{x}/{y}.png', {
+        tms: mode === 'tms',
+        minZoom: TILE_MIN_ZOOM,
+        maxNativeZoom: TILE_MAX_ZOOM,  // overzoom beyond generated tiles
+        maxZoom: MAP_MAX_ZOOM,
+        bounds: BOUNDS,                // no 404 requests outside coverage
         attribution: 'Mapa topograficzna 1935'
       });
     }
 
     function setupComparison(mode) {
-      if (mapa1935) map.removeLayer(mapa1935);
-      if (sideBySide) map.removeControl(sideBySide);
+      if (sideBySide) { map.removeControl(sideBySide); sideBySide = null; }
+      if (mapa1935)   { map.removeLayer(mapa1935); }
 
-      mapa1935 = createHistoricalLayer(mode);
-      mapa1935.addTo(map);
+      mapa1935 = createHistoricalLayer(mode).addTo(map);
 
-      sideBySide = L.control.sideBySide(mapa1935, googleSatellite);
-      sideBySide.addTo(map);
+      sideBySide = L.control.sideBySide(mapa1935, googleSatellite).addTo(map);
     }
 
+    // ---- Init ------------------------------------------------------------
+    map.fitBounds(BOUNDS);
     setupComparison('xyz');
 
     document.querySelectorAll('input[name="tileMode"]').forEach(input => {
-      input.addEventListener('change', e => {
-        setupComparison(e.target.value);
-      });
+      input.addEventListener('change', e => setupComparison(e.target.value));
     });
-
-    // Dopasowanie do obszaru Twojej mapy
-    map.fitBounds([
-      [51.4859, 20.9500],
-      [51.5925, 21.1853]
-    ]);
   </script>
 </body>
 </html>
