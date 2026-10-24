@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa 1935 vs Google Satellite</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Plugin Side-by-Side -->
+  <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@master/leaflet-side-by-side.js"></script>
+
+  <style>
+    html, body { margin: 0; height: 100%; font-family: Arial, sans-serif; }
+    #map { position: absolute; inset: 0; }
+
+    .info {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(255,255,255,.95);
+      padding: 8px 14px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .mode {
+      position: absolute;
+      top: 70px;
+      left: 10px;
+      z-index: 1000;
+      background: #fff;
+      padding: 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <div class="info">
+    <b>Mapa 1935 vs Google Satellite</b><br>
+    Przeciągnij pionową linię, aby porównać obrazy.
+  </div>
+
+  <div class="mode">
+    <label>
+      <input type="radio" name="tileMode" value="xyz" checked>
+      Kafelki XYZ
+    </label>
+    <br>
+    <label>
+      <input type="radio" name="tileMode" value="tms">
+      Kafelki TMS
+    </label>
+  </div>
+
+  <script>
+    let mapa1935;
+    let sideBySide;
+
+    const map = L.map('map', {
+      center: [51.539, 21.068],
+      zoom: 13
+    });
+
+    const googleSatellite = L.tileLayer(
+      'https://mt{s}.google.com/vt/lyrs=s&hl=pl&x={x}&y={y}&z={z}', {
+        subdomains: ['0', '1', '2', '3'],
+        maxZoom: 19,
+        attribution: 'Imagery &copy; Google'
+      }
+    ).addTo(map);
+
+    function createHistoricalLayer(mode) {
+      const url = mode === 'tms'
+        ? './tiles_1935/{z}/{x}/{-y}.png'
+        : './tiles_1935/{z}/{x}/{y}.png';
+
+      return L.tileLayer(url, {
+        minZoom: 12,
+        maxZoom: 18,
+        attribution: 'Mapa topograficzna 1935'
+      });
+    }
+
+    function setupComparison(mode) {
+      if (mapa1935) map.removeLayer(mapa1935);
+      if (sideBySide) map.removeControl(sideBySide);
+
+      mapa1935 = createHistoricalLayer(mode);
+      mapa1935.addTo(map);
+
+      sideBySide = L.control.sideBySide(mapa1935, googleSatellite);
+      sideBySide.addTo(map);
+    }
+
+    setupComparison('xyz');
+
+    document.querySelectorAll('input[name="tileMode"]').forEach(input => {
+      input.addEventListener('change', e => {
+        setupComparison(e.target.value);
+      });
+    });
+
+    // Dopasowanie do obszaru Twojej mapy
+    map.fitBounds([
+      [51.4859, 20.9500],
+      [51.5925, 21.1853]
+    ]);
+  </script>
+</body>
+</html>
