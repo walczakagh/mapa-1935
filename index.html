@@ -1,153 +1,221 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Mapa 1935 - Porównanie</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa 1935 vs Google Satellite</title>
 
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
 
-    <style>
-        html, body, #map {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            user-select: none;
-            -webkit-user-select: none;
-        }
+  <!-- Leaflet and side-by-side plugin -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@master/leaflet-side-by-side.js"></script>
 
-        /* Pionowa linia rozdzielająca */
-        #divider {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 4px;
-            background: #ffffff;
-            box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
-            z-index: 1000;
-            cursor: ew-resize;
-            touch-action: none;
-        }
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
 
-        /* Uchwyt / kółko na środku linii */
-        #divider-handle {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            background: #ffffff;
-            border: 3px solid rgba(0, 0, 0, 0.5);
-            border-radius: 50%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            color: #333;
-            pointer-events: none;
-        }
+    #map {
+      position: absolute;
+      inset: 0;
+      background: #eee;
+    }
 
-        /* Niewidzialna strefa ułatwiająca chwycenie na telefonie */
-        #divider::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: -20px;
-            width: 44px;
-            cursor: ew-resize;
-        }
-    </style>
+    .info {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 8px 14px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      text-align: center;
+      font-size: 14px;
+      max-width: calc(100% - 120px);
+    }
+
+    .mode {
+      position: absolute;
+      top: 75px;
+      left: 10px;
+      z-index: 1000;
+      background: #fff;
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    /* Side-by-side slider */
+    .leaflet-sbs-range {
+      z-index: 1000;
+      cursor: ew-resize;
+    }
+
+    .leaflet-sbs-divider {
+      z-index: 999;
+    }
+
+    @media (max-width: 600px) {
+      .info {
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+
+      .mode {
+        font-size: 12px;
+      }
+    }
+  </style>
 </head>
+
 <body>
-    <div id="map"></div>
-    <div id="divider">
-        <div id="divider-handle">◀▶</div>
-    </div>
+  <div id="map"></div>
 
-    <script>
-        // 1. Inicjalizacja mapy
-        var map = L.map('map').setView([52.23, 21.01], 13); // Wpisz współrzędne swojej mapy jeśli inne
+  <div class="info">
+    <b>Mapa 1935 vs Google Satellite</b><br>
+    Przeciągnij pionową linię, aby porównać obrazy.
+  </div>
 
-        // 2. Warstwa podkładowa (OSM)
-        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap',
-            maxZoom: 19
-        }).addTo(map);
+  <div class="mode">
+    <label>
+      <input type="radio" name="tileMode" value="xyz" checked>
+      Kafelki XYZ
+    </label>
+    <br>
+    <label>
+      <input type="radio" name="tileMode" value="tms">
+      Kafelki TMS
+    </label>
+  </div>
 
-        // 3. Twoja warstwa kafelków z 1935 r.
-        var mapa1935 = L.tileLayer('./tiles_1935/{z}/{x}/{y}.png', {
-            minZoom: 12,
-            maxZoom: 17,
-            attribution: 'Mapa 1935'
-        }).addTo(map);
+  <script>
+    // Check that Leaflet loaded.
+    if (typeof L === "undefined") {
+      throw new Error("Leaflet failed to load.");
+    }
 
-        var divider = document.getElementById('divider');
-        var isDragging = false;
-        var splitPosition = window.innerWidth / 2;
+    // Initialize map.
+    const map = L.map("map", {
+      center: [51.539, 21.068],
+      zoom: 13,
+      zoomControl: true
+    });
 
-        function updateClip() {
-            var mapContainer = map.getContainer();
-            var rect = mapContainer.getBoundingClientRect();
-            var x = splitPosition - rect.left;
+    // Google satellite layer.
+    const googleSatellite = L.tileLayer(
+      "https://{s}.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}",
+      {
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        minZoom: 0,
+        maxZoom: 19,
+        attribution: "Imagery © Google",
+        crossOrigin: true
+      }
+    );
 
-            // Przycinanie warstwy 1935 od lewej strony do pozycji suwaka
-            var layerElement = mapa1935.getContainer();
-            if (layerElement) {
-                var nw = map.containerPointToLayerPoint([0, 0]);
-                var se = map.containerPointToLayerPoint([x, rect.height]);
-                layerElement.style.clip = 'rect(' + nw.y + 'px, ' + se.x + 'px, ' + se.y + 'px, ' + nw.x + 'px)';
-            }
-            divider.style.left = splitPosition + 'px';
+    googleSatellite.addTo(map);
+
+    // Historical map and comparison control.
+    let mapa1935 = null;
+    let sideBySide = null;
+
+    function createHistoricalLayer(mode) {
+      return L.tileLayer(
+        "./tiles_1935/{z}/{x}/{y}.png",
+        {
+          minZoom: 12,
+          maxZoom: 18,
+          tms: mode === "tms",
+          attribution: "Mapa topograficzna 1935",
+          keepBuffer: 4
         }
+      );
+    }
 
-        // Zdarzenia przycinania mapy
-        map.on('move', updateClip);
-        map.on('zoom', updateClip);
-        mapa1935.on('load', updateClip);
+    function setupComparison(mode) {
+      // Remove the previous comparison control.
+      if (sideBySide) {
+        map.removeControl(sideBySide);
+        sideBySide = null;
+      }
 
-        // Obsługa przeciągania suwaka (Mysz + Dotyk na telefonie)
-        function startDrag(e) {
-            isDragging = true;
-            document.body.style.cursor = 'ew-resize';
-            e.preventDefault();
+      // Remove the previous historical layer.
+      if (mapa1935) {
+        map.removeLayer(mapa1935);
+        mapa1935 = null;
+      }
+
+      // Create historical tiles using the selected indexing scheme.
+      mapa1935 = createHistoricalLayer(mode);
+      mapa1935.addTo(map);
+
+      // Initialize slider:
+      // left = historical map, right = satellite imagery.
+      if (typeof L.control.sideBySide !== "function") {
+        console.error(
+          "Side-by-side plugin failed to load. Check the CDN request."
+        );
+        return;
+      }
+
+      sideBySide = L.control.sideBySide(
+        mapa1935,
+        googleSatellite
+      );
+
+      sideBySide.addTo(map);
+
+      console.log("Comparison initialized:", mode);
+    }
+
+    // Initial setup.
+    setupComparison("xyz");
+
+    // Toggle between XYZ and TMS tile indexing.
+    document.querySelectorAll(
+      'input[name="tileMode"]'
+    ).forEach(input => {
+      input.addEventListener("change", function (event) {
+        if (event.target.checked) {
+          setupComparison(event.target.value);
         }
+      });
+    });
 
-        function doDrag(e) {
-            if (!isDragging) return;
-            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            splitPosition = Math.max(0, Math.min(window.innerWidth, clientX));
-            updateClip();
-        }
+    // Study area.
+    map.fitBounds([
+      [51.4859, 20.9500],
+      [51.5925, 21.1853]
+    ]);
 
-        function stopDrag() {
-            if (isDragging) {
-                isDragging = false;
-                document.body.style.cursor = '';
-            }
-        }
+    // Log satellite tile errors for debugging.
+    googleSatellite.on("tileerror", function (event) {
+      console.error(
+        "Satellite tile failed to load:",
+        event.tile.src
+      );
+    });
 
-        divider.addEventListener('mousedown', startDrag);
-        window.addEventListener('mousemove', doDrag);
-        window.addEventListener('mouseup', stopDrag);
-
-        divider.addEventListener('touchstart', startDrag, { passive: false });
-        window.addEventListener('touchmove', doDrag, { passive: false });
-        window.addEventListener('touchend', stopDrag);
-
-        window.addEventListener('resize', function() {
-            splitPosition = window.innerWidth / 2;
-            updateClip();
-        });
-
-        // Pierwsze wywołanie
-        updateClip();
-    </script>
+    // Report failed historical tiles.
+    map.on("layeradd", function (event) {
+      if (event.layer === mapa1935) {
+        console.log("Historical map layer added.");
+      }
+    });
+  </script>
 </body>
 </html>
