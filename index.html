@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Plugin Side-by-Side (pinned version) -->
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-side-by-side@2.2.0/leaflet-side-by-side.js"></script>
+  <!-- Plugin Side-by-Side -->
+  <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@master/leaflet-side-by-side.js"></script>
 
   <style>
     html, body { margin: 0; height: 100%; font-family: Arial, sans-serif; }
@@ -110,6 +110,12 @@
     }
 
     function setupComparison(mode) {
+      if (!L.control.sideBySide) {
+        document.querySelector('.info').innerHTML =
+          '<b style="color:#c00">Nie załadowano wtyczki side-by-side.</b><br>Sprawdź konsolę (F12) i połączenie z CDN.';
+        console.error('leaflet-side-by-side failed to load');
+        return;
+      }
       if (sideBySide) { map.removeControl(sideBySide); sideBySide = null; }
       if (mapa1935)   { map.removeLayer(mapa1935); }
 
