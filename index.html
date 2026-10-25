@@ -29,6 +29,21 @@
       font-size: 14px;
     }
 
+    /* Make the slider handle easy to grab (the line itself is click-through) */
+    .leaflet-sbs-range { cursor: ew-resize; }
+    .leaflet-sbs-range::-webkit-slider-thumb {
+      pointer-events: auto;
+      cursor: ew-resize;
+      width: 36px;
+      height: 36px;
+    }
+    .leaflet-sbs-range::-moz-range-thumb {
+      pointer-events: auto;
+      cursor: ew-resize;
+      width: 36px;
+      height: 36px;
+    }
+
     .mode {
       position: absolute;
       top: 70px;
@@ -122,6 +137,38 @@
       mapa1935 = createHistoricalLayer(mode).addTo(map);
 
       sideBySide = L.control.sideBySide(mapa1935, googleSatellite).addTo(map);
+      lockMapWhileSliding();
+    }
+
+    // Prevent the map from panning/zooming while the slider is being dragged
+    function lockMapWhileSliding() {
+      const range = document.querySelector('.leaflet-sbs-range');
+      if (!range) return;
+
+      const handlers = [map.dragging, map.touchZoom, map.doubleClickZoom, map.boxZoom, map.scrollWheelZoom];
+      let locked = false;
+
+      const lock = () => {
+        if (locked) return;
+        locked = true;
+        handlers.forEach(h => h && h.disable());
+      };
+      const unlock = () => {
+        if (!locked) return;
+        locked = false;
+        handlers.forEach(h => h && h.enable());
+      };
+
+      // Stop the events from reaching Leaflet's map drag handler
+      L.DomEvent.disableClickPropagation(range);
+      ['pointerdown', 'mousedown', 'touchstart'].forEach(ev => {
+        range.addEventListener(ev, e => { e.stopPropagation(); lock(); }, { passive: true });
+      });
+      ['pointerup', 'pointercancel', 'mouseup', 'touchend', 'touchcancel'].forEach(ev => {
+        window.addEventListener(ev, unlock, { passive: true });
+      });
+      range.addEventListener('mouseover', lock);
+      range.addEventListener('mouseout', e => { if (!e.buttons) unlock(); });
     }
 
     // ---- Init ------------------------------------------------------------
